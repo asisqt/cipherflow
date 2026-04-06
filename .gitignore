@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+*.egg-info/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Terraform
+infrastructure/.terraform/
+infrastructure/.terraform.lock.hcl
+infrastructure/terraform.tfstate*
+infrastructure/terraform.tfvars
+*.tfplan
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Docker
+*.tar
+
+# OS
+.DS_Store
+Thumbs.db

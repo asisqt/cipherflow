@@ -1,0 +1,60 @@
+version: "3.9"
+
+# Local development + testing stack.
+# Mirrors the DOKS topology without needing a real cluster.
+# Usage: docker compose up --build
+
+services:
+
+  # ── CipherFlow API ──────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_TAG: local-dev
+        BUILD_COMMIT: local
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: development
+      DEBUG: "true"
+      BUILD_TAG: local-dev
+      SECRET_KEY: dev-secret-key-min-32-chars-here!!
+      ENCRYPTION_KEY: dev-encrypt-key-32-bytes-padding!
+      ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - cipherflow-net
+
+  # ── Sonatype Nexus (Docker registry) ───────────────────────────────────────
+  nexus:
+    image: sonatype/nexus3:latest
+    ports:
+      - "8081:8081"   # Nexus UI
+      - "8083:8083"   # Docker hosted repository
+    volumes:
+      - nexus-data:/nexus-data
+    environment:
+      INSTALL4J_ADD_VM_PARAMS: "-Xms512m -Xmx1g -XX:MaxDirectMemorySize=512m"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/service/rest/v1/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s   # Nexus takes ~2 min to start
+    networks:
+      - cipherflow-net
+
+volumes:
+  nexus-data:
+
+networks:
+  cipherflow-net:
+    driver: bridge

@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars — never commit real values
+# do_token is read from TF_VAR_do_token environment variable
+
+region              = "blr1"
+cluster_name        = "cipherflow"
+k8s_version         = "1.29"
+node_size           = "s-2vcpu-4gb"
+node_count          = 2
+nexus_droplet_ip    = "YOUR_DROPLET_PUBLIC_IP"
+nexus_registry_port = 8083
+ssh_public_key_path = "~/.ssh/id_rsa.pub"
