@@ -4,7 +4,6 @@ Tests cover individual functions in isolation with no external dependencies.
 Run: pytest tests/unit/ -v
 """
 
-import pytest
 from src.services.data_processor import (
     ProcessingStatus,
     process_payload,
