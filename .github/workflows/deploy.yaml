@@ -1,0 +1,32 @@
+name: Build and Push to DOCR
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    needs: []
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install doctl
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ secrets.DO_TOKEN }}
+
+    - name: Login to DOCR
+      run: doctl registry login --expiry-seconds 1200
+
+    - name: Build and Push
+      run: |
+        docker build -t registry.digitalocean.com/cipherflow-registry/cipherflow:latest -t registry.digitalocean.com/cipherflow-registry/cipherflow:${{ github.sha }} .
+        docker push registry.digitalocean.com/cipherflow-registry/cipherflow:latest
+        docker push registry.digitalocean.com/cipherflow-registry/cipherflow:${{ github.sha }}
+
+    - name: Deploy to DOKS
+      run: |
+        doctl kubernetes cluster kubeconfig save cipherflow-cluster
+        kubectl apply -f k8s/
+        kubectl rollout restart deployment/cipherflow
