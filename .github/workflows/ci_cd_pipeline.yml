@@ -6,54 +6,36 @@ on:
   pull_request:
     branches: [main]
 
-env:
-  NEXUS_REGISTRY: ${{ secrets.NEXUS_HOST }}:8083
-  IMAGE_NAME:     ${{ secrets.NEXUS_HOST }}:8083/cipherflow/api
-  BUILD_TAG:      ${{ github.sha }}
-
 jobs:
-  # ── 1. LINT ──────────────────────────────────────────────────────────────────
   lint:
     name: Lint (ruff)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
+      - run: pip install ruff==0.4.4
+      - run: ruff check src/ tests/
 
-      - name: Install ruff
-        run: pip install ruff==0.4.4
-
-      - name: Run linter
-        run: ruff check src/ tests/
-
-  # ── 2. TEST ──────────────────────────────────────────────────────────────────
   test:
     name: Test (unit + integration + BDD)
     runs-on: ubuntu-latest
     needs: lint
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Create __init__.py files (ensure packages resolve)
+      - run: pip install -r requirements.txt
+      - name: Create __init__.py files
         run: |
           touch src/__init__.py src/api/__init__.py \
                 src/core/__init__.py src/services/__init__.py \
                 tests/__init__.py tests/unit/__init__.py \
                 tests/integration/__init__.py
-
       - name: Run unit tests with coverage
         run: |
           pytest tests/unit/ -v \
@@ -64,102 +46,17 @@ jobs:
         env:
           SECRET_KEY: test-secret-key-min-32-chars-here!!
           ENCRYPTION_KEY: test-encrypt-32-bytes-padding-here!
-
       - name: Run integration tests
         run: pytest tests/integration/ -v
         env:
           SECRET_KEY: test-secret-key-min-32-chars-here!!
           ENCRYPTION_KEY: test-encrypt-32-bytes-padding-here!
-
       - name: Run BDD tests (behave)
         run: behave tests/features/ --no-capture
         env:
           SECRET_KEY: test-secret-key-min-32-chars-here!!
           ENCRYPTION_KEY: test-encrypt-32-bytes-padding-here!
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: coverage.xml
-
-  # ── 3. BUILD & PUSH TO NEXUS ─────────────────────────────────────────────────
-  build-push:
-    name: Build image & push to Nexus
-    runs-on: ubuntu-latest
-    needs: test
-    if: github.event_name == 'push'
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Nexus registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.NEXUS_REGISTRY }}
-          username: ${{ secrets.NEXUS_USER }}
-          password: ${{ secrets.NEXUS_PASS }}
-
-      - name: Build and push (immutable SHA tag)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          build-args: |
-            BUILD_TAG=${{ github.sha }}
-            BUILD_COMMIT=${{ github.sha }}
-          tags: |
-            ${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.IMAGE_NAME }}:${{ github.ref_name }}
-          # Layer cache stored in Nexus — this is what cuts ~40% off build times
-          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:cache
-          cache-to:   type=registry,ref=${{ env.IMAGE_NAME }}:cache,mode=max
-
-  # ── 4. DEPLOY TO DOKS ────────────────────────────────────────────────────────
-  deploy:
-    name: Deploy to DigitalOcean Kubernetes
-    runs-on: ubuntu-latest
-    needs: build-push
-    environment: production
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install doctl
-        uses: digitalocean/action-doctl@v2
-        with:
-          token: ${{ secrets.DO_TOKEN }}
-
-      - name: Configure kubectl
-        run: doctl kubernetes cluster kubeconfig save ${{ secrets.DOKS_CLUSTER_NAME }}
-
-      - name: Substitute image tag in manifests
-        run: |
-          sed -i "s|__API_IMAGE__|${{ env.IMAGE_NAME }}:${{ github.sha }}|g" k8s/api-deployment.yaml
-          sed -i "s|__BUILD_TAG__|${{ github.sha }}|g" k8s/api-deployment.yaml
-
-      - name: Apply Kubernetes manifests
-        run: |
-          kubectl apply -f k8s/namespace.yaml
-          kubectl apply -f k8s/nexus-secret.yaml
-          kubectl apply -f k8s/api-deployment.yaml
-          kubectl apply -f k8s/ingress.yaml
-
-      # Readiness probe gating — auto-rollback if pods don't become healthy
-      - name: Wait for rollout (health-check gated)
-        run: |
-          kubectl rollout status deployment/cipherflow-api \
-            --namespace=cipherflow \
-            --timeout=3m || \
-          (echo "Rollout failed — triggering rollback" && \
-           kubectl rollout undo deployment/cipherflow-api --namespace=cipherflow && \
-           exit 1)
-
-      - name: Verify deployment
-        run: |
-          echo "=== Pods ==="
-          kubectl get pods -n cipherflow
-          echo "=== Ingress ==="
-          kubectl get ingress -n cipherflow
