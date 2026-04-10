@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cipherflow-frontend
+  namespace: default
+  labels:
+    app: cipherflow
+    component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cipherflow
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: cipherflow
+        component: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: registry.digitalocean.com/cipherflow-registry/cipherflow-frontend:latest
+        ports:
+        - containerPort: 3000
+          protocol: TCP
+        env:
+        - name: NEXT_PUBLIC_API_URL
+          value: "http://cipherflow-api:8000"
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cipherflow-frontend
+  namespace: default
+  labels:
+    app: cipherflow
+    component: frontend
+spec:
+  type: LoadBalancer
+  selector:
+    app: cipherflow
+    component: frontend
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP
+    name: http

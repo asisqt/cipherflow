@@ -1,60 +1,50 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# CipherFlow — Local Development Stack
+# ═══════════════════════════════════════════════════════════════════════════════
+# Usage:
+#   docker-compose up --build        → start backend + frontend
+#   docker-compose down              → stop everything
+#   docker-compose logs -f backend   → tail backend logs
+# ═══════════════════════════════════════════════════════════════════════════════
+
 version: "3.9"
 
-# Local development + testing stack.
-# Mirrors the DOKS topology without needing a real cluster.
-# Usage: docker compose up --build
-
 services:
-
-  # ── CipherFlow API ──────────────────────────────────────────────────────────
-  api:
+  # ── Backend API ──────────────────────────────────────────────────────────
+  backend:
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        BUILD_TAG: local-dev
-        BUILD_COMMIT: local
+        BUILD_TAG: local-compose
+        BUILD_COMMIT: development
+    container_name: cipherflow-api
     ports:
       - "8000:8000"
     environment:
-      APP_ENV: development
-      DEBUG: "true"
-      BUILD_TAG: local-dev
-      SECRET_KEY: dev-secret-key-min-32-chars-here!!
-      ENCRYPTION_KEY: dev-encrypt-key-32-bytes-padding!
-      ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+      - SECRET_KEY=local-dev-secret-key-32-chars!!
+      - ENCRYPTION_KEY=local-dev-fernet-key-32-bytes!!
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - CORS_ORIGINS=["http://localhost:3000","http://localhost:8000"]
     healthcheck:
-      test: ["CMD", "python", "-c",
-             "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 10s
-    networks:
-      - cipherflow-net
+    restart: unless-stopped
 
-  # ── Sonatype Nexus (Docker registry) ───────────────────────────────────────
-  nexus:
-    image: sonatype/nexus3:latest
+  # ── Frontend Dashboard ───────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cipherflow-dashboard
     ports:
-      - "8081:8081"   # Nexus UI
-      - "8083:8083"   # Docker hosted repository
-    volumes:
-      - nexus-data:/nexus-data
+      - "3000:3000"
     environment:
-      INSTALL4J_ADD_VM_PARAMS: "-Xms512m -Xmx1g -XX:MaxDirectMemorySize=512m"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/service/rest/v1/status"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 120s   # Nexus takes ~2 min to start
-    networks:
-      - cipherflow-net
-
-volumes:
-  nexus-data:
-
-networks:
-  cipherflow-net:
-    driver: bridge
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped

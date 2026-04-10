@@ -1,169 +1,140 @@
 # CipherFlow
 
-A secure cloud-native data processing pipeline built with FastAPI, Docker, Kubernetes, and a full CI/CD delivery workflow via GitHub Actions and Sonatype Nexus.
+**Secure Data Processing Pipeline**
+
+A production-grade, cloud-native application demonstrating enterprise DevOps practices: JWT authentication, Fernet encryption, PII redaction, CI/CD automation, Infrastructure as Code, and Kubernetes orchestration.
+
+> **Live**: [http://64.225.84.36](http://64.225.84.36) &nbsp;|&nbsp; **Docs**: [/docs](http://64.225.84.36/docs)
 
 ---
 
 ## Architecture
 
 ```
-Developer → GitHub → GitHub Actions Pipeline
-                          │
-               ┌──────────┼──────────┐
-             Lint        Test       Build
-           (ruff)  (unit+integ+BDD) (Docker)
-                                      │
-                                 Nexus Registry
-                              (immutable SHA tags)
-                                      │
-                              DigitalOcean DOKS
-                                      │
-                         NGINX Ingress Controller
-                                      │
-                              cipherflow-api (FastAPI)
-                              /api/v1/process
-                              /api/v1/auth/token
+┌─────────────┐     ┌──────────────────────────────────────────────┐
+│   Browser    │────▶│           Next.js Frontend                   │
+│              │◀────│   Landing · Auth · Dashboard · Animations    │
+└─────────────┘     └──────────────┬───────────────────────────────┘
+                                   │ REST API
+                    ┌──────────────▼───────────────────────────────┐
+                    │           FastAPI Backend                     │
+                    │   /auth/token  /process  /process/encrypted  │
+                    └──────────────┬───────────────────────────────┘
+                                   │
+                    ┌──────────────▼───────────────────────────────┐
+                    │       5-Stage Processing Pipeline             │
+                    │                                               │
+                    │  Validate → Normalize → Redact → Checksum    │
+                    │                                 → Encrypt     │
+                    └──────────────────────────────────────────────┘
 ```
 
-**Pipeline stages:**
+## Tech Stack
 
-1. **Lint** — `ruff` checks all source and test code
-2. **Test** — unit tests (TDD), integration tests, BDD scenarios (behave)
-3. **Build & Push** — Docker image built with BuildKit cache, pushed to Nexus with immutable git SHA tag
-4. **Deploy** — `kubectl rollout` with readiness-probe gating; automatic rollback on failure
+| Layer          | Technology                                           |
+|----------------|------------------------------------------------------|
+| Frontend       | Next.js 14, React 18, Tailwind CSS, Framer Motion   |
+| Backend        | Python 3.12, FastAPI, Pydantic, Uvicorn              |
+| Security       | JWT (python-jose), Fernet (cryptography), bcrypt     |
+| Testing        | pytest (unit + integration), Behave (BDD), ruff      |
+| Containers     | Docker multi-stage builds, Docker Compose             |
+| Orchestration  | Kubernetes (DigitalOcean DOKS)                       |
+| Infrastructure | Terraform (DOKS cluster, DOCR registry, firewall)    |
+| CI/CD          | GitHub Actions (lint → test → build → deploy)        |
+| Registry       | DigitalOcean Container Registry (DOCR)               |
 
----
+## Processing Pipeline
 
-## Stack
+Every payload passes through a five-stage pipeline with per-stage timing metrics:
 
-| Layer | Technology |
-|---|---|
-| Framework | FastAPI + Uvicorn |
-| Auth | JWT (python-jose) + bcrypt (passlib) |
-| Encryption | Fernet / AES-128-CBC (cryptography) |
-| CI/CD | GitHub Actions |
-| Artifact registry | Sonatype Nexus 3 (Docker hosted repo) |
-| Container runtime | Docker (multi-stage build) |
-| Orchestration | DigitalOcean Kubernetes (DOKS) |
-| Ingress | NGINX Ingress Controller |
-| Infrastructure | Terraform + DigitalOcean provider |
-| Testing | pytest (unit + integration) + behave (BDD) |
-| Linting | ruff |
-
----
+1. **Validation** — Structural checks: required fields, type enforcement, email format validation
+2. **Normalization** — Whitespace stripping, Unicode lowercasing across nested structures
+3. **Redaction** — PII detection and masking (`password`, `ssn`, `credit_card`, `cvv`, `token`, `pin`, etc.)
+4. **Checksum** — SHA-256 integrity hash of canonicalized JSON for tamper detection
+5. **Encryption** *(optional)* — Fernet symmetric encryption producing an opaque, decryptable blob
 
 ## Project Structure
 
 ```
 cipherflow/
 ├── .github/workflows/
-│   └── ci_cd_pipeline.yml       # 4-stage pipeline: lint → test → build → deploy
+│   └── ci_cd_pipeline.yml           # 4-stage CI/CD: lint → test → build → deploy
 ├── infrastructure/
-│   ├── main.tf                  # DOKS cluster + VPC + firewalls
-│   ├── variables.tf             # Region, node size, Nexus IP
-│   └── security.tf              # Firewalls, SSH keys, RBAC model, DO project
+│   ├── main.tf                      # DOKS cluster + DOCR registry
+│   ├── variables.tf                 # Parameterized configuration
+│   └── security.tf                  # Firewall rules and security groups
 ├── src/
-│   ├── main.py                  # FastAPI app with lifespan, middleware, router
+│   ├── main.py                      # FastAPI application entry point
 │   ├── api/
-│   │   ├── routes.py            # All endpoints: auth, health, process, info
-│   │   └── dependencies.py      # JWT validation, user auth, DI type aliases
+│   │   ├── routes.py                # All HTTP endpoints with Pydantic schemas
+│   │   └── dependencies.py          # JWT Bearer authentication middleware
 │   ├── core/
-│   │   ├── config.py            # Pydantic Settings — env-var driven config
-│   │   └── security_utils.py    # bcrypt, JWT sign/verify, Fernet encrypt/decrypt
+│   │   ├── config.py                # Environment variable management (Pydantic Settings)
+│   │   └── security_utils.py        # JWT, Fernet, checksums, user auth
 │   └── services/
-│       └── data_processor.py    # Validate → normalise → redact → checksum → encrypt
+│       └── data_processor.py        # 5-stage processing pipeline with timing
 ├── tests/
 │   ├── unit/
-│   │   └── test_data_processor.py   # 18 TDD unit tests, no I/O
+│   │   └── test_data_processor.py   # 30 unit tests (TDD)
 │   ├── integration/
-│   │   └── test_api_routes.py       # 20 integration tests via TestClient
+│   │   └── test_api_routes.py       # 22 integration tests (HTTP lifecycle)
 │   └── features/
-│       ├── secure_processing.feature # 6 Gherkin BDD scenarios
-│       └── environment.py            # Behave step definitions
-├── Dockerfile                   # Multi-stage: builder + lean runtime, non-root user
-├── docker-compose.yml           # Local stack: API + Nexus
-├── requirements.txt
+│       ├── secure_processing.feature # 7 BDD scenarios (Gherkin)
+│       ├── environment.py
+│       └── steps/processing_steps.py
+├── frontend/
+│   ├── app/
+│   │   ├── layout.tsx               # Root layout with dark theme
+│   │   ├── page.tsx                 # Landing + Auth + Dashboard (SPA)
+│   │   └── globals.css              # Tailwind + custom animations
+│   ├── lib/api.ts                   # Typed API client + demo presets
+│   ├── Dockerfile                   # Multi-stage Next.js build
+│   └── package.json
+├── k8s/
+│   ├── api-deployment.yaml          # Backend pods + ClusterIP service
+│   ├── frontend-deployment.yaml     # Frontend pods + LoadBalancer service
+│   └── secrets.yaml                 # Kubernetes secrets template
+├── Dockerfile                       # Multi-stage backend build (~120MB)
+├── docker-compose.yml               # Local development stack
+├── requirements.txt                 # Pinned Python dependencies
 └── README.md
 ```
 
----
-
 ## API Endpoints
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `POST` | `/api/v1/auth/token` | No | Issue JWT with username + password |
-| `GET` | `/api/v1/health` | No | Liveness probe |
-| `GET` | `/api/v1/ready` | No | Readiness probe |
-| `POST` | `/api/v1/process` | Bearer JWT | Validate, normalise, redact, checksum |
-| `POST` | `/api/v1/process/encrypted` | Bearer JWT | Same + Fernet-encrypt the output |
-| `GET` | `/api/v1/info` | Bearer JWT | Build tag, version, environment |
+| Method | Path                       | Auth | Description                     |
+|--------|----------------------------|------|---------------------------------|
+| GET    | `/`                        | No   | API info and documentation link |
+| POST   | `/api/v1/auth/token`       | No   | Obtain JWT access token         |
+| POST   | `/api/v1/process`          | Yes  | Process payload (4 stages)      |
+| POST   | `/api/v1/process/encrypted`| Yes  | Process + encrypt (5 stages)    |
+| GET    | `/api/v1/health`           | No   | Health check + uptime           |
+| GET    | `/api/v1/ready`            | No   | Kubernetes readiness probe      |
+| GET    | `/api/v1/info`             | Yes  | Build and deployment info       |
+| GET    | `/docs`                    | No   | Swagger UI                      |
 
-Interactive docs available at `/docs` (Swagger UI) and `/redoc`.
+## Quick Start
 
----
-
-## Quick Start (local)
-
-### Run with Docker Compose
+### Local Development
 
 ```bash
-cp .env.example .env
-docker compose up --build
-```
+# Clone
+git clone https://github.com/asisqt/cipherflow.git
+cd cipherflow
 
-- API: http://localhost:8000/docs
-- Nexus UI: http://localhost:8081 (takes ~2 min to start)
-
-### Run without Docker
-
-```bash
+# Backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
 uvicorn src.main:app --reload
+
+# Frontend (separate terminal)
+cd frontend && npm install && npm run dev
+
+# Or use Docker Compose
+docker-compose up --build
 ```
 
-### Call the API
-
-```bash
-# 1. Get a token
-TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/token \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"cipherflow-secret"}' | jq -r .access_token)
-
-# 2. Process a payload
-curl -X POST http://localhost:8000/api/v1/process \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "payload_id": "demo-001",
-    "source": "readme-example",
-    "data": {"name": "Ashish Khatri", "role": "DevOps Engineer", "password": "secret123"}
-  }'
-```
-
-Expected response:
-```json
-{
-  "status": "success",
-  "record_id": "demo-001",
-  "checksum": "a3f9...64 hex chars",
-  "processed": {
-    "data": {
-      "name": "ashish khatri",
-      "role": "devops engineer",
-      "password": "secr********"
-    }
-  },
-  "encrypted": false,
-  "warnings": []
-}
-```
-
----
-
-## Running Tests
+### Run Tests
 
 ```bash
 # Unit tests with coverage
@@ -172,143 +143,62 @@ pytest tests/unit/ -v --cov=src --cov-report=term-missing
 # Integration tests
 pytest tests/integration/ -v
 
-# All tests together
-pytest tests/unit/ tests/integration/ -v --cov=src --cov-fail-under=80
-
-# BDD scenarios
+# BDD tests
 behave tests/features/ --no-capture
+
+# Lint
+ruff check src/ tests/
 ```
 
----
+## CI/CD Pipeline
 
-## Infrastructure Setup
+Every push to `main` triggers a four-stage automated pipeline:
 
-### Prerequisites
-
-- DigitalOcean account with an API token
-- Terraform ≥ 1.6
-- `doctl` CLI installed
-- An existing DO Droplet running Nexus (your $48/mo machine)
-
-### 1 — Start Nexus on your existing Droplet
-
-SSH into your droplet and run:
-
-```bash
-docker run -d \
-  --name nexus \
-  --restart unless-stopped \
-  -p 8081:8081 \
-  -p 8083:8083 \
-  -v nexus-data:/nexus-data \
-  sonatype/nexus3:latest
-
-# Wait 2 min then get the initial admin password
-docker exec nexus cat /nexus-data/admin.password
+```
+┌─────────┐    ┌─────────┐    ┌──────────────┐    ┌────────────┐
+│  Lint    │───▶│  Test   │───▶│ Build & Push │───▶│ Deploy to  │
+│  (ruff)  │    │ 59 tests│    │  (DOCR)      │    │   DOKS     │
+└─────────┘    └─────────┘    └──────────────┘    └────────────┘
 ```
 
-Open `http://<your-droplet-ip>:8081`, log in, then:
+- **Lint**: ruff static analysis
+- **Test**: 30 unit + 22 integration + 7 BDD tests
+- **Build**: Multi-stage Docker images pushed to DOCR with SHA tags
+- **Deploy**: Rolling update to Kubernetes with health-check gating
 
-1. Change the admin password
-2. Create a **Docker (hosted)** repository → HTTP connector on port 8083
-3. Enable **Docker Bearer Token Realm**: Security → Realms → activate it
+## Infrastructure as Code
 
-### 2 — Provision the DOKS cluster
+Terraform provisions all cloud resources:
 
 ```bash
 cd infrastructure
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars: set nexus_droplet_ip to your droplet's public IP
-
-export TF_VAR_do_token="your-digitalocean-api-token"
-
 terraform init
-terraform plan
-terraform apply
+terraform plan -var "do_token=$DO_TOKEN"
+terraform apply -var "do_token=$DO_TOKEN" -auto-approve
 ```
 
-Terraform provisions: VPC, DOKS cluster (2 × s-2vcpu-4gb in blr1), firewalls, SSH key, DO project.
+**Resources provisioned**:
+- DigitalOcean Kubernetes cluster (blr1 region)
+- Container registry for Docker images
+- Firewall rules (HTTPS, HTTP, K8s API only)
 
-### 3 — Configure kubectl
+## Security Features
 
-```bash
-doctl kubernetes cluster kubeconfig save cipherflow
-kubectl get nodes   # should show 2 Ready nodes
-```
+- **Authentication**: JWT Bearer tokens with configurable expiration
+- **Encryption**: Fernet symmetric encryption (AES-128-CBC + HMAC-SHA256)
+- **PII Redaction**: Automatic detection and masking of 12+ sensitive field types
+- **Integrity**: SHA-256 checksums for tamper detection
+- **Infrastructure**: Non-root Docker containers, K8s secrets, network firewall
+- **CI/CD**: GitHub push protection, no secrets in code
 
-### 4 — Install NGINX Ingress Controller
+## Demo Credentials
 
-```bash
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.0/deploy/static/provider/aws/deploy.yaml
-kubectl wait --namespace ingress-nginx \
-  --for=condition=ready pod \
-  --selector=app.kubernetes.io/component=controller \
-  --timeout=180s
-```
-
-### 5 — Create Nexus image pull secret in cluster
-
-```bash
-kubectl create namespace cipherflow
-kubectl create secret docker-registry nexus-pull-secret \
-  --namespace=cipherflow \
-  --docker-server=<YOUR_DROPLET_IP>:8083 \
-  --docker-username=admin \
-  --docker-password=<YOUR_NEXUS_PASS>
-```
-
-### 6 — Add GitHub Secrets
-
-In your repo → **Settings → Secrets and variables → Actions**:
-
-| Secret | Value |
-|---|---|
-| `NEXUS_HOST` | Your droplet public IP |
-| `NEXUS_USER` | `admin` |
-| `NEXUS_PASS` | Your Nexus admin password |
-| `DO_TOKEN` | Your DigitalOcean API token |
-| `DOKS_CLUSTER_NAME` | `cipherflow` |
-
-### 7 — Deploy
-
-```bash
-git push origin main
-```
-
-Watch at: `https://github.com/<you>/cipherflow/actions`
+| Username | Password           |
+|----------|--------------------|
+| admin    | cipherflow-secret  |
+| demo     | demo1234           |
+| analyst  | analyst-pass       |
 
 ---
 
-## Key Design Decisions
-
-**TDD + BDD together** — Unit tests (`pytest`) verify individual functions in isolation. Integration tests verify component interaction via FastAPI's `TestClient`. BDD scenarios (`behave`) verify complete user workflows in Gherkin, making tests readable as documentation.
-
-**Immutable artifacts** — Every image is tagged with `$GITHUB_SHA`. Images pushed to Nexus are never overwritten. Rollbacks redeploy a prior SHA tag rather than rebuilding.
-
-**Health-check gated rollouts** — `kubectl rollout status --timeout=3m` blocks the pipeline until new pods pass readiness probes. Failure triggers `kubectl rollout undo` automatically.
-
-**Non-root container** — The Dockerfile creates a `cfuser` system account. The runtime stage runs as that user, so a container escape has no root privileges on the host.
-
-**Fernet encryption** — `POST /process/encrypted` returns a Fernet-encrypted blob. Only parties with the `ENCRYPTION_KEY` can decrypt it, making the pipeline safe for sensitive data in transit through intermediate systems.
-
----
-
-## Cost Estimate (DigitalOcean blr1)
-
-| Resource | Cost |
-|---|---|
-| Existing Droplet (Nexus) | $48/mo (already running) |
-| DOKS — 2 × s-2vcpu-4gb | $48/mo |
-| DO Load Balancer (auto) | $12/mo |
-| **Total extra** | **~$60/mo** |
-
-Destroy the DOKS cluster when not in use: `terraform destroy`
-
----
-
-## Teardown
-
-```bash
-kubectl delete namespace cipherflow
-cd infrastructure && terraform destroy
-```
+Built by **Ashish Khatri** — [GitHub](https://github.com/asisqt) · [LinkedIn](https://linkedin.com/in/ashishkhatri)

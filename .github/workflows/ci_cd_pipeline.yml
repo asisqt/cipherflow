@@ -6,7 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  REGISTRY: registry.digitalocean.com/cipherflow-registry
+  CLUSTER_NAME: cipherflow-cluster
+
 jobs:
+  # ── 1. LINT ────────────────────────────────────────────────────────────────
   lint:
     name: Lint (ruff)
     runs-on: ubuntu-latest
@@ -19,6 +24,7 @@ jobs:
       - run: pip install ruff==0.4.4
       - run: ruff check src/ tests/
 
+  # ── 2. TEST ────────────────────────────────────────────────────────────────
   test:
     name: Test (unit + integration + BDD)
     runs-on: ubuntu-latest
@@ -30,12 +36,14 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
+
       - name: Create __init__.py files
         run: |
           touch src/__init__.py src/api/__init__.py \
                 src/core/__init__.py src/services/__init__.py \
                 tests/__init__.py tests/unit/__init__.py \
                 tests/integration/__init__.py
+
       - name: Run unit tests with coverage
         run: |
           pytest tests/unit/ -v \
@@ -46,17 +54,97 @@ jobs:
         env:
           SECRET_KEY: test-secret-key-min-32-chars-here!!
           ENCRYPTION_KEY: test-encrypt-32-bytes-padding-here!
+
       - name: Run integration tests
         run: pytest tests/integration/ -v
         env:
           SECRET_KEY: test-secret-key-min-32-chars-here!!
           ENCRYPTION_KEY: test-encrypt-32-bytes-padding-here!
+
       - name: Run BDD tests (behave)
         run: behave tests/features/ --no-capture
         env:
           SECRET_KEY: test-secret-key-min-32-chars-here!!
           ENCRYPTION_KEY: test-encrypt-32-bytes-padding-here!
+
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: coverage.xml
+
+  # ── 3. BUILD & PUSH ───────────────────────────────────────────────────────
+  build:
+    name: Build & push images
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
+
+      - name: Login to DOCR
+        run: doctl registry login --expiry-seconds 1200
+
+      - name: Build & push backend
+        run: |
+          docker build \
+            --build-arg BUILD_TAG=${{ github.sha }} \
+            --build-arg BUILD_COMMIT=${{ github.sha }} \
+            -t ${{ env.REGISTRY }}/cipherflow:${{ github.sha }} \
+            -t ${{ env.REGISTRY }}/cipherflow:latest \
+            .
+          docker push ${{ env.REGISTRY }}/cipherflow:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/cipherflow:latest
+
+      - name: Build & push frontend
+        run: |
+          docker build \
+            -t ${{ env.REGISTRY }}/cipherflow-frontend:${{ github.sha }} \
+            -t ${{ env.REGISTRY }}/cipherflow-frontend:latest \
+            ./frontend
+          docker push ${{ env.REGISTRY }}/cipherflow-frontend:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/cipherflow-frontend:latest
+
+  # ── 4. DEPLOY ──────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to DOKS
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
+
+      - name: Configure kubectl
+        run: doctl kubernetes cluster kubeconfig save ${{ env.CLUSTER_NAME }}
+
+      - name: Update image tags in manifests
+        run: |
+          sed -i "s|cipherflow:latest|cipherflow:${{ github.sha }}|g" k8s/api-deployment.yaml
+          sed -i "s|cipherflow-frontend:latest|cipherflow-frontend:${{ github.sha }}|g" k8s/frontend-deployment.yaml
+
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -f k8s/secrets.yaml
+          kubectl apply -f k8s/api-deployment.yaml
+          kubectl apply -f k8s/frontend-deployment.yaml
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/cipherflow-api --timeout=3m
+          kubectl rollout status deployment/cipherflow-frontend --timeout=3m
+
+      - name: Verify deployment
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods
+          echo "=== Services ==="
+          kubectl get svc

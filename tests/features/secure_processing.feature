@@ -1,62 +1,52 @@
-# CipherFlow BDD Feature: Secure Data Processing
-# Run: behave tests/features/
-
-Feature: Secure payload processing
-  As an authenticated API consumer
-  I want to submit data payloads for secure processing
-  So that sensitive fields are redacted and outputs are verifiable via checksum
+Feature: Secure Data Processing Pipeline
+  As an API consumer
+  I want to process sensitive data through CipherFlow
+  So that it is validated, normalized, redacted, and optionally encrypted
 
   Background:
     Given the CipherFlow API is running
-    And I have valid credentials for user "admin"
+    And I have valid admin credentials
 
-  # ── Authentication scenarios ──────────────────────────────────────────────
+  Scenario: Successful authentication
+    When I request a token with username "admin" and password "cipherflow-secret"
+    Then I receive a valid JWT token
+    And the token type is "bearer"
 
-  Scenario: Successful login returns a JWT token
-    When I POST to "/api/v1/auth/token" with username "admin" and password "cipherflow-secret"
-    Then the response status should be 200
-    And the response should contain an "access_token"
-    And the token type should be "bearer"
+  Scenario: Failed authentication with wrong password
+    When I request a token with username "admin" and password "wrong-password"
+    Then I receive a 401 error
 
-  Scenario: Login with wrong password is rejected
-    When I POST to "/api/v1/auth/token" with username "admin" and password "wrongpass"
-    Then the response status should be 401
-
-  # ── Processing scenarios ──────────────────────────────────────────────────
-
-  Scenario: Authenticated user can process a valid payload
+  Scenario: Process a valid payload without encryption
     Given I am authenticated as "admin"
-    When I submit a payload with id "bdd-001" from source "behave-test"
-    And the data contains name "Ashish Khatri" and role "DevOps Engineer"
-    Then the response status should be 200
-    And the processing status should be "success"
-    And the response should contain a checksum of 64 hex characters
-    And the data name should be normalised to "ashish khatri"
+    When I submit a payload with id "rec-001" and data:
+      | field    | value              |
+      | name     |   Alice Smith      |
+      | email    | alice@example.com  |
+      | password | supersecret        |
+    Then the response status is "success"
+    And the name field is normalized to "alice smith"
+    And the password field is redacted to "***"
+    And a 64-character checksum is present
+    And the pipeline contains 4 stages
 
-  Scenario: Unauthenticated request is rejected
-    Given I am not authenticated
-    When I submit a payload with id "bdd-002" from source "behave-test"
-    And the data contains name "test" and role "tester"
-    Then the response status should be 401
-
-  Scenario: Payload with missing required fields returns validation errors
+  Scenario: Process a valid payload with encryption
     Given I am authenticated as "admin"
-    When I submit an incomplete payload missing the "source" field
-    Then the response status should be 422
-    And the response should contain validation errors
+    When I submit an encrypted payload with id "rec-002" and data:
+      | field    | value              |
+      | name     | Bob Johnson        |
+      | email    | bob@example.com    |
+      | ssn      | 123-45-6789        |
+    Then the response status is "success"
+    And the payload is encrypted
+    And an encrypted blob is present
+    And the pipeline contains 5 stages
 
-  Scenario: Sensitive password field is redacted in output
+  Scenario: Reject invalid payload missing required fields
     Given I am authenticated as "admin"
-    When I submit a payload with id "bdd-003" from source "behave-test"
-    And the data contains a "password" field with value "super-secret-123"
-    Then the response status should be 200
-    And the output data should not contain "super-secret-123"
-    And the output data "password" field should contain masked characters
+    When I submit a payload missing the data field
+    Then I receive a 422 error
 
-  Scenario: Encrypted processing returns a Fernet blob
-    Given I am authenticated as "admin"
-    When I submit an encrypted payload with id "bdd-004" from source "behave-test"
-    And the data contains name "test" and role "engineer"
-    Then the response status should be 200
-    And the "encrypted" field should be true
-    And the processed output should contain an "encrypted_blob" key
+  Scenario: Health check returns OK
+    When I check the API health
+    Then the health status is "ok"
+    And the service name is "cipherflow"

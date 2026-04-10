@@ -1,52 +1,51 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# CipherFlow Infrastructure Variables
+# ═══════════════════════════════════════════════════════════════════════════════
+
 variable "do_token" {
-  description = "DigitalOcean API token — set via TF_VAR_do_token env var, never commit"
+  description = "DigitalOcean API token"
   type        = string
   sensitive   = true
 }
 
-variable "region" {
-  description = "DigitalOcean region"
+variable "cluster_name" {
+  description = "Name of the Kubernetes cluster"
   type        = string
-  default     = "blr1"   # Bangalore — closest to Delhi
+  default     = "cipherflow-cluster"
 }
 
-variable "cluster_name" {
-  description = "DOKS cluster name"
+variable "region" {
+  description = "DigitalOcean region for all resources"
   type        = string
-  default     = "cipherflow"
+  default     = "blr1"
 }
 
 variable "k8s_version" {
-  description = "Kubernetes version for DOKS"
+  description = "Kubernetes version slug"
   type        = string
-  default     = "1.29"
+  default     = "1.32.13-do.2"
 }
 
 variable "node_size" {
-  description = "Droplet size for Kubernetes worker nodes"
+  description = "Droplet size for worker nodes"
   type        = string
   default     = "s-2vcpu-4gb"
 }
 
 variable "node_count" {
-  description = "Number of worker nodes in the default node pool"
+  description = "Number of worker nodes"
   type        = number
-  default     = 2
+  default     = 1
 }
 
-variable "nexus_droplet_ip" {
-  description = "Public IP of your existing DigitalOcean droplet running Nexus"
+variable "environment" {
+  description = "Deployment environment (production, staging, development)"
   type        = string
+  default     = "production"
 }
 
-variable "nexus_registry_port" {
-  description = "Port Nexus Docker hosted repository listens on"
-  type        = number
-  default     = 8083
-}
-
-variable "ssh_public_key_path" {
-  description = "Path to SSH public key for Droplet access"
+variable "registry_name" {
+  description = "Name of the container registry"
   type        = string
-  default     = "~/.ssh/id_rsa.pub"
+  default     = "cipherflow-registry"
 }
