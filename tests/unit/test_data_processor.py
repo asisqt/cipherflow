@@ -6,7 +6,6 @@ TDD-style tests for each pipeline stage and the full orchestrator.
 checksum integrity, encryption, and edge cases.
 """
 
-import pytest
 from src.services.data_processor import (
     validate_payload,
     normalise_strings,
