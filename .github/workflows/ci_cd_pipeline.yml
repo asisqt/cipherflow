@@ -103,6 +103,7 @@ jobs:
       - name: Build & push frontend
         run: |
           docker build \
+            --build-arg NEXT_PUBLIC_API_URL=http://64.225.84.36 \
             -t ${{ env.REGISTRY }}/cipherflow-frontend:${{ github.sha }} \
             -t ${{ env.REGISTRY }}/cipherflow-frontend:latest \
             ./frontend
