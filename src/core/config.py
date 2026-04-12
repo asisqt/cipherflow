@@ -46,3 +46,7 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Cached settings instance — loaded once per process."""
     return Settings()
+
+# ── Logging ──────────────────────────────────────────────────────────────
+LOG_LEVEL: str = "INFO"
+LOG_FORMAT: str = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
