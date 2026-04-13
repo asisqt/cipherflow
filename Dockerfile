@@ -58,3 +58,9 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
 
 # Run with uvicorn
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+
+# ── Labels for container metadata ────────────────────────────────────────────
+LABEL maintainer="Ashish Khatri <1060ashish@gmail.com>"
+LABEL org.opencontainers.image.source="https://github.com/asisqt/cipherflow"
+LABEL org.opencontainers.image.description="CipherFlow secure data processing API"
+LABEL org.opencontainers.image.version="2.0.0"
