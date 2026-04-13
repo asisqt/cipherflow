@@ -73,3 +73,15 @@ output "registry_endpoint" {
   description = "The endpoint of the container registry"
   value       = digitalocean_container_registry.cipherflow.endpoint
 }
+
+# ── Outputs for CI/CD integration ────────────────────────────────────────────
+
+output "cluster_name" {
+  description = "Name of the Kubernetes cluster for kubectl config"
+  value       = digitalocean_kubernetes_cluster.cipherflow.name
+}
+
+output "node_pool_size" {
+  description = "Current node count in the default pool"
+  value       = digitalocean_kubernetes_cluster.cipherflow.node_pool[0].node_count
+}
