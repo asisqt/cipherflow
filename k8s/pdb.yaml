@@ -1,0 +1,29 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cipherflow-api-pdb
+  namespace: default
+  labels:
+    app: cipherflow
+    component: api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: cipherflow
+      component: api
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cipherflow-frontend-pdb
+  namespace: default
+  labels:
+    app: cipherflow
+    component: frontend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: cipherflow
+      component: frontend
