@@ -48,19 +48,25 @@ ARG BUILD_COMMIT=development
 ENV BUILD_TAG=${BUILD_TAG}
 ENV BUILD_COMMIT=${BUILD_COMMIT}
 
+# Security: read-only filesystem hint
+ENV PYTHONHASHSEED=random
+
 # Switch to non-root user
 USER cipherflow
 
 # Expose port and define health check
 EXPOSE 8000
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')" || exit 1
 
 # Run with uvicorn
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--access-log"]
 
 # ── Labels for container metadata ────────────────────────────────────────────
 LABEL maintainer="Ashish Khatri <1060ashish@gmail.com>"
 LABEL org.opencontainers.image.source="https://github.com/asisqt/cipherflow"
 LABEL org.opencontainers.image.description="CipherFlow secure data processing API"
 LABEL org.opencontainers.image.version="2.0.0"
+LABEL org.opencontainers.image.vendor="Ashish Khatri"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.created="2026-04-21"
