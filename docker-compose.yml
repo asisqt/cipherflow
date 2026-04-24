@@ -1,16 +1,6 @@
-# ═══════════════════════════════════════════════════════════════════════════════
-# CipherFlow — Local Development Stack
-# ═══════════════════════════════════════════════════════════════════════════════
-# Usage:
-#   docker-compose up --build        → start backend + frontend
-#   docker-compose down              → stop everything
-#   docker-compose logs -f backend   → tail backend logs
-# ═══════════════════════════════════════════════════════════════════════════════
-
 version: "3.9"
 
 services:
-  # ── Backend API ──────────────────────────────────────────────────────────
   backend:
     build:
       context: .
@@ -26,19 +16,24 @@ services:
       - ENCRYPTION_KEY=local-dev-fernet-key-32-bytes!!
       - ENVIRONMENT=development
       - DEBUG=true
+      - LOG_LEVEL=DEBUG
       - CORS_ORIGINS=["http://localhost:3000","http://localhost:8000"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
       interval: 10s
       timeout: 5s
       retries: 3
+      start_period: 15s
     restart: unless-stopped
+    networks:
+      - cipherflow-net
 
-  # ── Frontend Dashboard ───────────────────────────────────────────────────
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
     container_name: cipherflow-dashboard
     ports:
       - "3000:3000"
@@ -48,3 +43,10 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - cipherflow-net
+
+networks:
+  cipherflow-net:
+    driver: bridge
+    name: cipherflow-network
