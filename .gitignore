@@ -1,38 +1,53 @@
 # ── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
+*$py.class
 *.egg-info/
+*.egg
 .venv/
 venv/
+dist/
+build/
+*.whl
+
+# ── Environment ──────────────────────────────────────────────────────────────
 .env
-*.egg
+.env.local
+.env.production
+!.env.example
 
 # ── Node / Next.js ───────────────────────────────────────────────────────────
 frontend/node_modules/
 frontend/.next/
 frontend/out/
+frontend/.env.local
 
 # ── Terraform ────────────────────────────────────────────────────────────────
+terraform/
 infrastructure/.terraform/
 infrastructure/terraform.tfstate
 infrastructure/terraform.tfstate.backup
 *.tfvars
+!*.tfvars.example
 
 # ── IDE ──────────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
 # ── Docker ───────────────────────────────────────────────────────────────────
 docker-compose.override.yml
 
-# ── Coverage ─────────────────────────────────────────────────────────────────
+# ── Coverage & Testing ───────────────────────────────────────────────────────
 coverage.xml
 htmlcov/
 .coverage
+.pytest_cache/
+test_output.txt
 
 # ── OS ───────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
-terraform/
+*.log
