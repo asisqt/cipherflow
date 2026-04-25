@@ -1,3 +1,23 @@
+[project]
+name = "cipherflow"
+version = "2.0.0"
+description = "Secure cloud-native data processing pipeline with JWT auth, Fernet encryption, and PII redaction"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [{name = "Ashish Khatri", email = "1060ashish@gmail.com"}]
+keywords = ["security", "encryption", "pii-redaction", "fastapi", "kubernetes", "devops"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security :: Cryptography",
+]
+
+[project.urls]
+Repository = "https://github.com/asisqt/cipherflow"
+Documentation = "https://github.com/asisqt/cipherflow#readme"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
