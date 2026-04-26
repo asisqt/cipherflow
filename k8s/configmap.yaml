@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cipherflow-config
+  namespace: default
+  labels:
+    app: cipherflow
+data:
+  APP_NAME: "CipherFlow"
+  APP_VERSION: "2.0.0"
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "WARNING"
+  DEBUG: "false"
+  ACCESS_TOKEN_EXPIRE_SECONDS: "1800"
+  CORS_ORIGINS: '["https://cipherflow.dev","http://129.212.246.168"]'
+  WORKERS: "2"
