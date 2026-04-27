@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cipherflow-monitoring
+  namespace: default
+  labels:
+    app: cipherflow
+    component: monitoring
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
+data:
+  alerting-rules: |
+    groups:
+    - name: cipherflow-alerts
+      rules:
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High 5xx error rate on CipherFlow API"
+          description: "More than 10% of requests returning 5xx for 2+ minutes"
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency on CipherFlow"
+          description: "95th percentile latency exceeds 2 seconds for 3+ minutes"
+
+      - alert: PodRestarting
+        expr: increase(kube_pod_container_status_restarts_total{namespace="default",pod=~"cipherflow.*"}[1h]) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CipherFlow pod restarting frequently"
+          description: "Pod has restarted more than 3 times in the last hour"
