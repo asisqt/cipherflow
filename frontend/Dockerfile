@@ -9,6 +9,7 @@
 
 # ── Stage 1: Dependencies ────────────────────────────────────────────────────
 FROM node:20-alpine AS deps
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY package.json ./
 RUN npm install --frozen-lockfile 2>/dev/null || npm install
@@ -32,13 +33,19 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Security: run as non-root
+# Security: run as non-root with no shell
 RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
+    adduser --system --uid 1001 --shell /bin/false nextjs
+
+# Security: remove unnecessary system packages
+RUN apk --no-cache del apk-tools
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Security: make app files read-only
+RUN chmod -R 555 /app
 
 USER nextjs
 
@@ -47,3 +54,9 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "server.js"]
+
+# ── Labels ───────────────────────────────────────────────────────────────────
+LABEL maintainer="Ashish Khatri <1060ashish@gmail.com>"
+LABEL org.opencontainers.image.source="https://github.com/asisqt/cipherflow"
+LABEL org.opencontainers.image.description="CipherFlow dashboard — Next.js frontend"
+LABEL org.opencontainers.image.version="2.0.0"
