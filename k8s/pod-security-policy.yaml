@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cipherflow-security-context
+  namespace: default
+  labels:
+    app: cipherflow
+  annotations:
+    description: "Security context standards for all CipherFlow pods"
+data:
+  policy.yaml: |
+    # Pod Security Standards for CipherFlow
+    # Applied via security contexts in deployment manifests
+    
+    standards:
+      # Run as non-root user
+      runAsNonRoot: true
+      
+      # Drop all Linux capabilities
+      dropCapabilities:
+        - ALL
+      
+      # Read-only root filesystem
+      readOnlyRootFilesystem: true
+      
+      # Prevent privilege escalation
+      allowPrivilegeEscalation: false
+      
+      # Seccomp profile
+      seccompProfile: RuntimeDefault
+    
+    # Allowed volume types
+    volumes:
+      - configMap
+      - secret
+      - emptyDir
+      - projected
+    
+    # Network restrictions
+    network:
+      hostNetwork: false
+      hostPorts: false
+      hostPID: false
+      hostIPC: false
